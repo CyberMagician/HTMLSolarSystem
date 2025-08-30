@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar System Simulation - V5.2 (Color & Placeholder Polish)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #0a0a1a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: calc(100vh - 80px); /* Space for controls */
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.75);
+            padding: 10px 15px;
+            border-radius: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+            z-index: 10;
+            max-width: 98%;
+        }
+        #controls button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 7px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+        #controls button:hover {
+            background-color: #0056b3;
+            transform: translateY(-1px);
+        }
+        #controls button.active {
+            background-color: #28a745;
+        }
+        #controls button.active:hover {
+            background-color: #218838;
+        }
+        .speed-button { background-color: #17a2b8; }
+        .speed-button:hover { background-color: #138496; }
+        .speed-button.active { background-color: #0f6674; box-shadow: inset 0 0 5px rgba(0,0,0,0.3); }
+
+        #info-box {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.75);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 0.75em;
+            color: #eee;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+            max-width: calc(100% - 20px);
+        }
+        #planet-info-display {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(10, 10, 30, 0.9);
+            padding: 12px 18px;
+            border-radius: 10px;
+            color: #ffffff;
+            font-size: 0.9em;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.5);
+            z-index: 20;
+            display: none;
+            max-width: 260px;
+            text-align: left;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        #planet-info-display h3 {
+            margin-top: 0; margin-bottom: 8px; color: #4dabf7; font-size: 1.3em;
+            border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 6px;
+        }
+        #planet-info-display p { margin-bottom: 5px; font-size: 0.85em; line-height: 1.3; }
+        #planet-info-display p strong { color: #a5d8ff; }
+
+        #confirmation-modal-overlay, #welcome-modal-overlay, #loading-overlay {
+            position: absolute; top:0; left:0; width:100%; height:100%; background-color:rgba(0,0,0,0.85);
+            display:flex; justify-content:center; align-items:center; z-index:1000;
+        }
+        #loading-overlay { display: flex; } /* Initially visible */
+        #confirmation-modal-overlay, #welcome-modal-overlay { display: none; } /* Initially hidden */
+
+        #confirmation-modal-content, #welcome-modal-content, #loading-content {
+            background-color:#121222; padding:25px 35px; border-radius:12px;
+            box-shadow:0 10px 25px rgba(0,0,0,0.7); text-align:center; color:#e0e0e0;
+            max-width:550px; border:1px solid rgba(255,255,255,0.1);
+        }
+        #loading-content p {font-size:1.4em; margin-bottom:12px;}
+        #loading-content #loading-progress {font-size:1.1em; color:#00e676;}
+        #confirmation-modal-content h3, #welcome-modal-content h3 {margin-top:0; color:#4dabf7; font-size:1.5em; margin-bottom:15px;}
+        #welcome-modal-content .bttf-quote {font-style:italic; font-size:0.9em; color:#aaaaaa; margin-top:-5px; margin-bottom:15px;}
+        #confirmation-modal-content p, #welcome-modal-content p {margin-bottom:20px; font-size:1em; line-height:1.6;}
+        #welcome-modal-content ul {text-align:left; margin-left:20px; margin-bottom:20px;}
+        #welcome-modal-content ul li {margin-bottom:5px;}
+        #confirmation-modal-buttons, #welcome-modal-buttons {display:flex; justify-content:center; gap:15px;}
+        #confirmation-modal-buttons button, #welcome-modal-buttons button {
+            padding:10px 20px; border-radius:6px; cursor:pointer; font-size:0.95em;
+            transition:background-color 0.3s ease, transform 0.1s ease; border:none;
+        }
+        #confirmation-modal-buttons button:hover, #welcome-modal-buttons button:hover {transform:translateY(-2px);}
+        #confirm-action-button {background-color:#e74c3c; color:white;}
+        #confirm-action-button:hover {background-color:#c0392b;}
+        #cancel-action-button, #close-welcome-button {background-color:#3498db; color:white;}
+        #cancel-action-button:hover, #close-welcome-button:hover {background-color:#2980b9;}
+
+        .planet-label {
+            position:absolute; background-color:rgba(0,0,0,0.7); color:white; padding:2px 6px; border-radius:4px;
+            font-size:0.65em; white-space:nowrap; pointer-events:none; opacity:0;
+            transition:opacity 0.2s ease-out; transform:translate(-50%, -120%); z-index:50; text-shadow:0 0 2px black;
+        }
+        .constellation-label {
+            position: absolute; color: #77aaff; font-size: 0.7em; pointer-events: none;
+            text-shadow: 0 0 3px #000000; opacity: 0; transition: opacity 0.3s ease-in-out;
+            transform:translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay"><div id="loading-content"><p>Polishing Planetary Surfaces...</p><div id="loading-progress">0%</div></div></div>
+
+    <div id="info-box">Drag:Rotate. Scroll/Pinch:Zoom. Click Body:Focus. Empty Space:Reset.</div>
+
+    <div id="controls">
+        <button id="play-pause-button">Pause</button>
+        <button id="speed-1x-button" class="speed-button active">1x</button>
+        <button id="speed-2x-button" class="speed-button">2x</button>
+        <button id="speed-5x-button" class="speed-button">5x</button>
+        <button id="speed-10x-button" class="speed-button">10x</button>
+        <button id="reset-view-button">Reset View</button>
+        <button id="music-toggle-button">Music Off</button>
+        <button id="toggle-orbits-button" class="active">Orbits On</button>
+        <button id="toggle-labels-button" class="active">Body Labels On</button>
+        <button id="toggle-constellations-button">Constellations Off</button>
+        </div>
+
+    <div id="planet-info-display">
+        <h3 id="planet-info-name"></h3>
+        <p><strong>Type:</strong> <span id="planet-info-type"></span></p>
+        <p><strong>Diameter:</strong> <span id="planet-info-size"></span></p>
+        <p><strong>Known Moons:</strong> <span id="planet-info-moons"></span></p>
+        <p><strong>Notable Feature:</strong> <span id="planet-info-feature"></span></p>
+        <p><strong>Orbital Period:</strong> <span id="planet-info-orbit-period"></span></p>
+        <p><strong>Rotation Period:</strong> <span id="planet-info-rotation-period"></span></p>
+    </div>
+
+    <div id="confirmation-modal-overlay">
+        <div id="confirmation-modal-content">
+            <h3>Confirm Action</h3>
+            <p id="confirmation-message">Are you sure?</p>
+            <div id="confirmation-modal-buttons">
+                <button id="confirm-action-button">Confirm</button>
+                <button id="cancel-action-button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="welcome-modal-overlay">
+        <div id="welcome-modal-content">
+            <h3>Welcome to the Cosmos! V5.2</h3>
+            <p class="bttf-quote">"That's one small step for [a] man, one giant leap for mankind." - Neil Armstrong</p>
+            <p>Version 5.2: Placeholder planet textures are now text-free, and default planet colors have been refined for a more realistic look.</p>
+            <p><strong>Controls:</strong> Mouse/Touch to explore. Buttons below for features.</p>
+            <div id="welcome-modal-buttons">
+                <button id="close-welcome-button">Start Exploring</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <script type="module">
+        // --- Global Variables & Configuration ---
+        let scene, camera, renderer;
+        let sun, sunLight, sunGlow;
+        const celestialBodies = []; // Stores planets, moons
+        const orbitLines = []; // Stores orbit line objects
+        const asteroids = []; // Stores asteroid objects
+        const kuiperBeltObjects = []; // Stores Kuiper belt objects
+
+        // Camera control variables
+        let isDragging = false; // True if a drag operation is in progress
+        let pointerDown = false; // True if mouse button or touch is currently pressed
+
+        let previousMouseX = 0, previousMouseY = 0;
+        let touchStartX = 0, touchStartY = 0;
+        let initialPinchDistance = 0;
+
+        let cameraRadius = 500; // Initial distance from target
+        let cameraPolarAngle = Math.PI / 2.8; // Initial vertical angle
+        let cameraAzimuthalAngle = 0.15; // Initial horizontal angle - SLIGHTLY OFFSET
+
+        const MIN_CAMERA_RADIUS = 1, MAX_CAMERA_RADIUS = 15000; // Zoom limits
+        const MIN_POLAR_ANGLE = 0.05, MAX_POLAR_ANGLE = Math.PI - 0.05; // Angle limits to prevent gimbal lock
+
+        // Target values for smooth camera transitions
+        let targetCameraRadius = cameraRadius;
+        let targetCameraPolarAngle = cameraPolarAngle;
+        let targetCameraAzimuthalAngle = cameraAzimuthalAngle;
+        let targetLookAt = new THREE.Vector3(0, 0, 0); // Point camera is looking at
+
+        const CAMERA_LERP_FACTOR = 0.08; // Smoothing factor for camera movement
+        const CAMERA_ROTATION_SPEED = 0.004; // Speed of camera rotation with mouse
+
+        // Simulation state variables
+        let simulationSpeed = 1;
+        let isPaused = false;
+        let glowScaleFactor = 1, glowDirection = 1; // For sun glow animation
+
+        let focusedObject = null; // Currently selected celestial body
+        let orbitsVisible = true;
+        let labelsVisible = true;
+        let constellationsVisible = false;
+        // cameraLockedToTarget variable removed
+
+        // Three.js utilities
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2(); // For click detection
+        const loadingManager = new THREE.LoadingManager();
+        const textureLoader = new THREE.TextureLoader(loadingManager);
+        const textureCache = {}; // Cache for loaded textures
+
+        // Tone.js music variables
+        let musicPlaying = false;
+        let synth, reverb, delay, musicLoop;
+        const MUSIC_SCALE = ["C3","D3","E3","F#3","G3","A3","C4","D4","E4","F#4","G4","A4"];
+
+        // Helper function to get a hex color string from a number
+        function getHexColor(colorInt) {
+            return colorInt.toString(16).padStart(6, '0');
+        }
+
+        // --- Data Definitions ---
+        const PLANET_DATA = [
+            { name: 'Mercury', orbitRadius: 45, orbitSpeed: 0.021, rotationSpeed: 0.03, color: 0xaaaaaa, size: 2.4, texture: `https://placehold.co/256x256/${getHexColor(0xaaaaaa)}/${getHexColor(0xaaaaaa)}`, info: { type: 'Terrestrial', size: '4,879 km', orbitPeriod: '88 days', rotationPeriod: '59 days', knownMoonsCount: 0, notableFeature: 'Caloris Basin, Scarps' }, axialTilt: 0.03 },
+            { name: 'Venus', orbitRadius: 70, orbitSpeed: 0.016, rotationSpeed: 0.008, color: 0xFFF8DC, size: 6.0, texture: `https://placehold.co/256x256/${getHexColor(0xFFF8DC)}/${getHexColor(0xFFF8DC)}`, info: { type: 'Terrestrial', size: '12,104 km', orbitPeriod: '225 days', rotationPeriod: '243 days (R)', knownMoonsCount: 0, notableFeature: 'Thick CO2 Atmosphere, Volcanoes' }, axialTilt: 177.4 },
+            { name: 'Earth', orbitRadius: 100, orbitSpeed: 0.01, rotationSpeed: 0.015, color: 0x0077ff, size: 6.3, texture: 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg', info: { type: 'Terrestrial', size: '12,742 km', orbitPeriod: '365 days', rotationPeriod: '1 day', knownMoonsCount: 1, notableFeature: 'Liquid Water, Life' }, axialTilt: 23.44, hasAtmosphere: true,
+                moons: [{ name: 'Moon', sizeFactor: 0.27, orbitRadiusFactor: 2.5, orbitSpeed: 0.05, rotationSpeed: 0.01, color: 0xcccccc, texture: 'https://threejs.org/examples/textures/planets/moon_1024.jpg', orbitInclination: 5.1, orbitLongitudeOfAscendingNode: 125, info:{type:'Natural Satellite', size: '3,474 km'} }]
+            },
+            { name: 'Mars', orbitRadius: 140, orbitSpeed: 0.0085, rotationSpeed: 0.025, color: 0xff4500, size: 3.4, texture: `https://placehold.co/256x256/${getHexColor(0xff4500)}/${getHexColor(0xff4500)}`, info: { type: 'Terrestrial', size: '6,779 km', orbitPeriod: '687 days', rotationPeriod: '1.03 days', knownMoonsCount: 2, notableFeature: 'Olympus Mons, Valles Marineris' }, axialTilt: 25.19,
+                moons: [
+                    { name: 'Phobos', sizeFactor: 0.025, orbitRadiusFactor: 1.2, orbitSpeed: 0.1, rotationSpeed: 0.02, color: 0x8B4513, texture: `https://placehold.co/64x64/${getHexColor(0x8B4513)}/${getHexColor(0x8B4513)}`, orbitInclination: 1.08, orbitLongitudeOfAscendingNode: 47, info:{type:'Natural Satellite', size:'~22 km'}},
+                    { name: 'Deimos', sizeFactor: 0.02, orbitRadiusFactor: 2.0, orbitSpeed: 0.08, rotationSpeed: 0.015, color: 0xA0522D, texture: `https://placehold.co/64x64/${getHexColor(0xA0522D)}/${getHexColor(0xA0522D)}`, orbitInclination: 1.79, orbitLongitudeOfAscendingNode: 70, info:{type:'Natural Satellite', size:'~12 km'} }
+                ]
+            },
+            { name: 'Jupiter', orbitRadius: 280, orbitSpeed: 0.0045, rotationSpeed: 0.045, color: 0xcc9966, size: 25, texture: `https://placehold.co/512x256/${getHexColor(0xcc9966)}/${getHexColor(0xcc9966)}`, info: { type: 'Gas Giant', size: '139,820 km', orbitPeriod: '11.86 yrs', rotationPeriod: '0.41 days', knownMoonsCount: 95, notableFeature: 'Great Red Spot, Strong Magnetic Field' }, axialTilt: 3.13,
+                moons: [
+                    { name: 'Io', sizeFactor:0.07,orbitRadiusFactor:1.8,orbitSpeed:0.06,rotationSpeed:0.03,color:0xFFD700, texture: `https://placehold.co/128x128/${getHexColor(0xFFD700)}/${getHexColor(0xFFD700)}`, orbitInclination:0.05,orbitLongitudeOfAscendingNode:10,info:{type:'Galilean Moon',size:'3,643 km'}},
+                    { name: 'Europa', sizeFactor:0.06,orbitRadiusFactor:2.5,orbitSpeed:0.05,rotationSpeed:0.025,color:0xE0D8C0, texture: `https://placehold.co/128x128/${getHexColor(0xE0D8C0)}/${getHexColor(0xE0D8C0)}`, orbitInclination:0.47,orbitLongitudeOfAscendingNode:170,info:{type:'Galilean Moon',size:'3,122 km'}},
+                    { name: 'Ganymede', sizeFactor:0.1,orbitRadiusFactor:3.5,orbitSpeed:0.04,rotationSpeed:0.02,color:0x969696, texture: `https://placehold.co/128x128/${getHexColor(0x969696)}/${getHexColor(0x969696)}`, orbitInclination:0.20,orbitLongitudeOfAscendingNode:330,info:{type:'Galilean Moon',size:'5,268 km'}},
+                    { name: 'Callisto', sizeFactor:0.09,orbitRadiusFactor:4.8,orbitSpeed:0.03,rotationSpeed:0.015,color:0x606060, texture: `https://placehold.co/128x128/${getHexColor(0x606060)}/${getHexColor(0x606060)}`, orbitInclination:0.21,orbitLongitudeOfAscendingNode:80,info:{type:'Galilean Moon',size:'4,821 km'}},
+                    { name: 'Carme (Fict.)', sizeFactor:0.007,orbitRadiusFactor:7.0,orbitSpeed:0.010,rotationSpeed:0.007,color:0xaa8888,orbitInclination:165,isRetrograde:true,orbitLongitudeOfAscendingNode:290,info:{type:'Irregular Moon (R)'}},
+                    { name: 'Sinope (Fict.)', sizeFactor:0.005,orbitRadiusFactor:9.0,orbitSpeed:0.008,rotationSpeed:0.005,color:0x88aaaa,orbitInclination:158,isRetrograde:true,orbitLongitudeOfAscendingNode:60,info:{type:'Irregular Moon (R)'}},
+                    { name: 'Elara (Fict.)', sizeFactor:0.01,orbitRadiusFactor:6.5,orbitSpeed:0.015,rotationSpeed:0.01,color:0x999988,orbitInclination:35,isRetrograde:false,orbitLongitudeOfAscendingNode:120,info:{type:'Irregular Moon (P)'}},
+                    { name: 'Ananke (Fict.)', sizeFactor:0.006,orbitRadiusFactor:7.5,orbitSpeed:0.011,rotationSpeed:0.006,color:0x889988,orbitInclination:149,isRetrograde:true,orbitLongitudeOfAscendingNode:200,info:{type:'Irregular Moon (R)'}}
+                ]
+            },
+            { name: 'Saturn', orbitRadius: 400, orbitSpeed: 0.0032, rotationSpeed: 0.038, color: 0xeedd99, size: 22, hasRings: true, texture: `https://placehold.co/512x256/${getHexColor(0xeedd99)}/${getHexColor(0xeedd99)}`, info: { type: 'Gas Giant', size: '116,460 km', orbitPeriod: '29.46 yrs', rotationPeriod: '0.44 days', knownMoonsCount: 146, notableFeature: 'Prominent Ring System' }, axialTilt: 26.73,
+                moons: [
+                     { name: 'Titan', sizeFactor:0.12,orbitRadiusFactor:3.0,orbitSpeed:0.03,rotationSpeed:0.01,color:0xFFA500, texture: `https://placehold.co/128x128/${getHexColor(0xFFA500)}/${getHexColor(0xFFA500)}`, orbitInclination:0.33,orbitLongitudeOfAscendingNode:168,info:{type:'Major Moon',size:'5,150 km'}},
+                     { name: 'Iapetus (Fict.)', sizeFactor:0.04,orbitRadiusFactor:4.5,orbitSpeed:0.01,rotationSpeed:0.005,color:0xbbbbbb, texture: `https://placehold.co/128x128/${getHexColor(0xbbbbbb)}/${getHexColor(0xbbbbbb)}`, orbitInclination:18,orbitLongitudeOfAscendingNode:100,info:{type:'Major Moon'}}
+                ]
+            },
+            { name: 'Uranus', orbitRadius: 550, orbitSpeed: 0.0022, rotationSpeed: 0.02, color: 0x99eeff, size: 15, texture: `https://placehold.co/256x256/${getHexColor(0x99eeff)}/${getHexColor(0x99eeff)}`, info: { type: 'Ice Giant', size: '50,724 km', orbitPeriod: '84 yrs', rotationPeriod: '0.72 days (R)', knownMoonsCount: 27, notableFeature: 'Extreme Axial Tilt (98°)' }, axialTilt: 97.77 },
+            { name: 'Neptune', orbitRadius: 680, orbitSpeed: 0.0016, rotationSpeed: 0.022, color: 0x6666ff, size: 14.5, texture: `https://placehold.co/256x256/${getHexColor(0x6666ff)}/${getHexColor(0x6666ff)}`, info: { type: 'Ice Giant', size: '49,244 km', orbitPeriod: '164.8 yrs', rotationPeriod: '0.67 days', knownMoonsCount: 14, notableFeature: 'Great Dark Spot (variable), Triton (retrograde moon)' }, axialTilt: 28.32,
+                 moons: [{ name: 'Triton', sizeFactor:0.08,orbitRadiusFactor:1.8,orbitSpeed:0.02,rotationSpeed:0.01,color:0xFFFAFA, texture: `https://placehold.co/128x128/${getHexColor(0xFFFAFA)}/${getHexColor(0xFFFAFA)}`, orbitInclination:157,isRetrograde:true,orbitLongitudeOfAscendingNode:150,info:{type:'Major Moon',size:'2,707 km'}}]
+            },
+            { name: 'Pluto', orbitRadius: 780, orbitSpeed: 0.001, rotationSpeed: 0.005, color: 0xD2B48C, size: 1.2, texture: `https://placehold.co/128x128/${getHexColor(0xD2B48C)}/${getHexColor(0xD2B48C)}`, info: { type: 'Dwarf Planet', size: '2,376 km', orbitPeriod: '248 yrs', rotationPeriod: '6.39 days (R)', knownMoonsCount: 5, notableFeature: 'Heart-shaped Tombaugh Regio' }, axialTilt: 119.59,
+                 moons: [{ name: 'Charon', sizeFactor:0.51,orbitRadiusFactor:3.0,orbitSpeed:0.03,rotationSpeed:0.005,color:0xbbbbbb, texture: `https://placehold.co/64x64/${getHexColor(0xbbbbbb)}/${getHexColor(0xbbbbbb)}`, orbitInclination:0.001,orbitLongitudeOfAscendingNode:223,info:{type:'Major Moon',size:'1,212 km'}}]
+            }
+        ];
+        const CONSTELLATION_DATA = {
+            "Orion": { stars: { "Betelgeuse":{x:-0.2,y:0.3,z:-0.9},"Rigel":{x:0.15,y:-0.35,z:-0.9},"Bellatrix":{x:-0.1,y:0.25,z:-0.95},"Mintaka":{x:0.0,y:-0.05,z:-1.0},"Alnilam":{x:0.05,y:-0.02,z:-1.0},"Alnitak":{x:0.1,y:0.01,z:-1.0},"Saiph":{x:0.2,y:-0.3,z:-0.9}}, lines:[["Betelgeuse","Bellatrix"],["Rigel","Saiph"],["Bellatrix","Mintaka"],["Mintaka","Alnilam"],["Alnilam","Alnitak"],["Alnitak","Saiph"],["Betelgeuse","Alnitak"],["Rigel","Mintaka"]], labelPos:{x:0,y:0,z:-0.95} },
+            "Ursa Major": { stars: { "Dubhe":{x:0.5,y:0.8,z:-0.8},"Merak":{x:0.45,y:0.7,z:-0.85},"Phad":{x:0.35,y:0.65,z:-0.88},"Megrez":{x:0.25,y:0.75,z:-0.85},"Alioth":{x:0.1,y:0.7,z:-0.9},"Mizar":{x:-0.05,y:0.65,z:-0.92},"Alkaid":{x:-0.2,y:0.55,z:-0.95}}, lines:[["Dubhe","Merak"],["Merak","Phad"],["Phad","Megrez"],["Megrez","Alioth"],["Alioth","Mizar"],["Mizar","Alkaid"]], labelPos:{x:0.15,y:0.7,z:-0.88} },
+            "Cassiopeia": { stars: { "Schedar":{x:-0.8,y:0.2,z:-0.8},"Caph":{x:-0.6,y:0.1,z:-0.85},"Tsih":{x:-0.7,y:0.0,z:-0.9},"Ruchbah":{x:-0.85,y:-0.1,z:-0.8},"Segin":{x:-0.95,y:0.05,z:-0.75}}, lines:[["Caph","Schedar"],["Schedar","Tsih"],["Tsih","Ruchbah"],["Ruchbah","Segin"]], labelPos:{x:-0.75,y:0.05,z:-0.8} },
+            "Leo": { stars: {"Regulus":{x:0.5,y:-0.5,z:-0.9},"Algieba":{x:0.6,y:-0.3,z:-0.85},"Denebola":{x:0.9,y:-0.6,z:-0.7},"Zosma":{x:0.8,y:-0.5,z:-0.75},"Chertan":{x:0.85,y:-0.7,z:-0.72}, "Rasalas":{x:0.55,y:-0.2,z:-0.95}}, lines:[["Regulus","Algieba"],["Algieba","Rasalas"], ["Rasalas","Regulus"], ["Zosma","Denebola"],["Denebola","Chertan"],["Chertan","Zosma"],["Zosma","Algieba"]], labelPos:{x:0.7,y:-0.4,z:-0.8} },
+            "Ursa Minor": { stars: {"Polaris":{x:0.4,y:0.95,z:0.1}, "Kochab":{x:0.2,y:0.8,z:0.2}, "Pherkad":{x:0.15,y:0.75,z:0.25},"Yildun":{x:0.3,y:0.9,z:0.15},"Urodelus":{x:0.1,y:0.7,z:0.3}, "Akhfa al Farkadain":{x:0.05,y:0.65,z:0.32}}, lines:[["Polaris","Yildun"],["Yildun","Urodelus"],["Urodelus","Akhfa al Farkadain"],["Akhfa al Farkadain","Pherkad"],["Pherkad","Kochab"],["Kochab","Yildun"]], labelPos:{x:0.25,y:0.85,z:0.2}},
+            "Canis Major": { stars: {"Sirius":{x:0.1,y:-0.6,z:-0.8},"Mirzam":{x:0.0,y:-0.5,z:-0.85},"Adhara":{x:0.15,y:-0.7,z:-0.75},"Wezen":{x:0.05,y:-0.65,z:-0.8}}, lines:[["Sirius","Mirzam"],["Sirius","Adhara"],["Sirius","Wezen"],["Adhara","Wezen"],["Mirzam","Wezen"]], labelPos:{x:0.08,y:-0.62,z:-0.82} },
+            "Taurus": { stars: {"Aldebaran":{x:-0.4,y:0.0,z:-0.9},"Elnath":{x:-0.5,y:0.15,z:-0.85},"HyadumI":{x:-0.35,y:-0.05,z:-0.92},"Ain":{x:-0.38,y:0.05,z:-0.88}}, lines:[["Aldebaran","Elnath"],["Aldebaran","HyadumI"],["Aldebaran","Ain"],["HyadumI","Ain"]], labelPos:{x:-0.42,y:0.05,z:-0.89} },
+            "Gemini": { stars: { "Pollux": {x:-0.3, y:0.4, z:-0.85}, "Castor": {x:-0.25, y:0.5, z:-0.85}, "Alhena": {x:-0.35, y:0.3, z:-0.86}, "Tejat": {x:-0.4, y:0.2, z:-0.87}, "Mebsuta":{x:-0.15, y:0.55, z:-0.82}}, lines: [["Pollux", "Alhena"], ["Alhena","Tejat"], ["Castor", "Mebsuta"], ["Pollux","Castor"]], labelPos:{x:-0.3, y:0.35, z:-0.85} },
+            "Cygnus": { stars: { "Deneb":  {x:0.7, y:0.8, z:0.3}, "Sadr":   {x:0.6, y:0.7, z:0.35}, "Albireo":{x:0.4, y:0.5, z:0.45}, "GienahCyg": {x:0.65,y:0.6, z:0.25}, "Fawaris":{x:0.55,y:0.8, z:0.2} }, lines: [["Deneb", "Sadr"], ["Sadr", "Albireo"], ["Sadr", "GienahCyg"], ["Sadr", "Fawaris"], ["Deneb","GienahCyg"], ["Deneb","Fawaris"]], labelPos:{x:0.6, y:0.7, z:0.3} },
+            "Lyra": { stars: {"Vega":{x:0.5, y:0.75, z:0.15}, "Sheliak":{x:0.45, y:0.65, z:0.18}, "Sulafat":{x:0.55, y:0.65, z:0.12}}, lines:[["Vega","Sheliak"],["Vega","Sulafat"],["Sheliak","Sulafat"]], labelPos:{x:0.5, y:0.7, z:0.16}},
+            "Aquila": { stars: {"Altair":{x:0.6, y:0.2, z:0.1}, "Tarazed":{x:0.62, y:0.25, z:0.08}, "Alshain":{x:0.58, y:0.15, z:0.12}}, lines:[["Altair","Tarazed"],["Altair","Alshain"]], labelPos:{x:0.6, y:0.2, z:0.1}},
+            "Boötes": { stars: {"Arcturus":{x:0.0, y:0.4, z:-0.75}, "Izar":{x:0.05, y:0.5, z:-0.7}, "Muphrid":{x:-0.05, y:0.3, z:-0.8}}, lines:[["Arcturus","Izar"],["Arcturus","Muphrid"]], labelPos:{x:0.0, y:0.4, z:-0.75}},
+            "Andromeda": { stars: {"Alpheratz":{x:-0.9, y:0.15, z:-0.25}, "Mirach":{x:-0.8, y:0.0, z:-0.35}, "Almach":{x:-0.7, y:0.2, z:-0.4}}, lines:[["Alpheratz","Mirach"],["Mirach","Almach"]], labelPos:{x:-0.8, y:0.1, z:-0.3}},
+            "Pegasus": { stars: {"Markab":{x:-0.75, y:-0.25, z:-0.5},"Scheat":{x:-0.85, y:-0.15, z:-0.45},"Algenib":{x:-0.65, y:-0.15, z:-0.55}, "Enif":{x:-0.9, y:-0.3, z:-0.6}}, lines:[["Markab","Scheat"],["Scheat","Algenib"],["Algenib","Markab"], ["Scheat","Enif"]], labelPos:{x:-0.78, y:-0.2, z:-0.5}},
+            "Perseus": { stars: {"Mirfak":{x:-0.65, y:0.35, z:-0.65},"Algol":{x:-0.55, y:0.25, z:-0.75}, "Atik":{x:-0.7,y:0.4,z:-0.6}}, lines:[["Mirfak","Algol"],["Mirfak","Atik"]], labelPos:{x:-0.6, y:0.3, z:-0.7}},
+            "Canis Minor": { stars: {"Procyon":{x:-0.05, y:-0.15, z:-0.9},"Gomeisa":{x:0.0, y:-0.05, z:-0.95}}, lines:[["Procyon","Gomeisa"]], labelPos:{x:-0.02, y:-0.1, z:-0.92}},
+            "Scorpius": { stars: {"Antares":{x:0.15, y:-0.85, z:-0.25},"Shaula":{x:0.25, y:-0.9, z:-0.15},"Sargas":{x:0.1, y:-0.9, z:-0.2}, "Dschubba":{x:0.12,y:-0.8,z:-0.3}}, lines:[["Antares","Shaula"],["Antares","Sargas"],["Antares","Dschubba"]], labelPos:{x:0.18, y:-0.88, z:-0.2}},
+            "Sagittarius": { stars: {"KausAustralis":{x:0.45, y:-0.75, z:0.05},"Nunki":{x:0.35, y:-0.65, z:0.15},"Ascella":{x:0.4, y:-0.8, z:0.0}, "KausMedia":{x:0.42, y:-0.70, z:0.08}}, lines:[["KausAustralis","Nunki"],["Nunki","Ascella"],["Ascella","KausAustralis"],["KausAustralis","KausMedia"]], labelPos:{x:0.4, y:-0.73, z:0.08}},
+            "Crux": { stars: {"Acrux":{x:0.0, y:-0.95, z:0.25},"Becrux":{x:0.05, y:-0.9, z:0.2},"Gacrux":{x:-0.05, y:-0.88, z:0.3},"Decrux":{x:0.03, y:-0.98, z:0.22}}, lines:[["Acrux","Gacrux"],["Becrux","Decrux"]], labelPos:{x:0.0, y:-0.92, z:0.26}},
+            "Centaurus": { stars: {"AlphaCen":{x:0.05, y:-0.96, z:-0.05},"Hadar":{x:0.15, y:-0.92, z:-0.15}, "Menkent":{x:-0.05,y:-0.85,z:0.0}}, lines:[["AlphaCen","Hadar"],["AlphaCen","Menkent"]], labelPos:{x:0.08, y:-0.94, z:-0.08}},
+            "Auriga": { stars: {"Capella":{x:-0.1,y:0.6,z:-0.7},"Menkalinan":{x:-0.05,y:0.5,z:-0.75},"Almaaz":{x:-0.15,y:0.65,z:-0.65}}, lines:[["Capella","Menkalinan"],["Capella","Almaaz"]], labelPos:{x:-0.1,y:0.58,z:-0.7}},
+            "Cancer": { stars: {"Altarf":{x:0.2,y:0.1,z:-0.9},"AsellusAustralis":{x:0.25,y:0.0,z:-0.92},"AsellusBorealis":{x:0.22,y:0.05,z:-0.88}}, lines:[["Altarf","AsellusAustralis"],["Altarf","AsellusBorealis"]], labelPos:{x:0.22,y:0.05,z:-0.9}},
+            "Virgo": { stars: {"Spica":{x:0.0,y:-0.7,z:0.1},"Porrima":{x:0.1,y:-0.6,z:0.05},"Vindemiatrix":{x:-0.1,y:-0.5,z:0.15}}, lines:[["Spica","Porrima"],["Spica","Vindemiatrix"]], labelPos:{x:0.0,y:-0.6,z:0.1}},
+            "Libra": { stars: {"Zubenelgenubi":{x:0.25,y:-0.75,z:0.3},"Zubeneschamali":{x:0.3,y:-0.65,z:0.35}}, lines:[["Zubenelgenubi","Zubeneschamali"]], labelPos:{x:0.27,y:-0.7,z:0.32}},
+            "Capricornus": { stars: {"DenebAlgedi":{x:0.7,y:-0.45,z:0.4},"Nashira":{x:0.75,y:-0.5,z:0.35},"Algedi":{x:0.65,y:-0.4,z:0.42}}, lines:[["DenebAlgedi","Nashira"],["DenebAlgedi","Algedi"]], labelPos:{x:0.7,y:-0.45,z:0.38}},
+            "Aquarius": { stars: {"Sadalmelik":{x:0.85,y:-0.05,z:0.4},"Sadalsuud":{x:0.8,y:-0.15,z:0.45},"Skat":{x:0.9,y:-0.2,z:0.35}}, lines:[["Sadalmelik","Sadalsuud"],["Sadalsuud","Skat"]], labelPos:{x:0.85,y:-0.1,z:0.4}},
+            "Pisces": { stars: {"EtaPsc":{x:-0.9,y:-0.05,z:-0.05},"OmegaPsc":{x:-0.85,y:0.0,z:-0.1},"GammaPsc":{x:-0.95,y:-0.1,z:0.0}}, lines:[["EtaPsc","OmegaPsc"],["OmegaPsc","GammaPsc"]], labelPos:{x:-0.9,y:-0.05,z:-0.05}},
+            "Draco": { stars: {"Thuban":{x:0.25,y:0.9,z:-0.3},"Rastaban":{x:0.15,y:0.95,z:-0.2},"Eltanin":{x:0.05,y:0.85,z:-0.1},"Grumium":{x:0.3,y:0.8,z:-0.35}}, lines:[["Thuban","Rastaban"],["Rastaban","Eltanin"],["Eltanin","Grumium"]], labelPos:{x:0.18,y:0.88,z:-0.22}},
+            "Hercules": { stars: {"Kornephoros":{x:0.3,y:0.5,z:0.5},"Sarin":{x:0.35,y:0.6,z:0.45},"Rasalgethi":{x:0.25,y:0.4,z:0.55}}, lines:[["Kornephoros","Sarin"],["Kornephoros","Rasalgethi"]], labelPos:{x:0.3,y:0.5,z:0.5}},
+            "Ophiuchus": { stars: {"Rasalhague":{x:0.4,y:0.0,z:0.6},"Sabik":{x:0.35,y:-0.1,z:0.65},"YedPrior":{x:0.45,y:0.1,z:0.55}}, lines:[["Rasalhague","Sabik"],["Rasalhague","YedPrior"]], labelPos:{x:0.4,y:0.0,z:0.6}}
+        };
+        let constellationObjects = { group: null, lines: [], labels: [], stars: [] };
+
+        // --- Initialization and Object Creation ---
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / (window.innerHeight - 80), 0.1, 20000);
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight - 80);
+            renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            const ambientLight = new THREE.AmbientLight(0x333344); scene.add(ambientLight);
+            sun = createSun(); scene.add(sun); createPlanetsAndMoons();
+            createBelt(1500,180,240,15,{min:0.2,max:0.8},0x888877,asteroids,0.004,0.009);
+            createBelt(2000,850,1200,40,{min:0.5,max:2.5},0x7777aa,kuiperBeltObjects,0.0004,0.0012);
+            createStarfield(30000, 10000);
+            createConstellationVisuals();
+            setupEventListeners(); updateSpeedButtonStates(); updateCameraPosition();
+        }
+
+        function createSun() {
+            const sunGeo = new THREE.SphereGeometry(30,64,64);
+            // Sun material is now emissive color, no texture
+            const sunMat = new THREE.MeshPhongMaterial({
+                color: 0xFFFDE0, // Whiter yellow
+                emissive: 0xFFFDE0, 
+                emissiveIntensity: 0.95, // Slightly higher for more pop without texture
+                shininess: 10 
+            });
+            const sunM = new THREE.Mesh(sunGeo,sunMat);
+            sunM.isFocusable=true; sunM.name='Sun';
+            sunM.info={type:'Star (G-type)',size:'1.39M km diameter',orbitPeriod:'N/A',rotationPeriod:'~27 Earth days',knownMoonsCount:0,notableFeature:"Source of all light & heat"};
+            sunLight=new THREE.PointLight(0xffffee,1.5,0,2); sunLight.castShadow=true;
+            sunLight.shadow.mapSize.width=2048; sunLight.shadow.mapSize.height=2048;
+            sunLight.shadow.camera.near=50; sunLight.shadow.camera.far=3000; sunLight.shadow.bias=-0.0005;
+            sunM.add(sunLight);
+            const glowTex = createRadialGradientTexture(128,0xffcc00,0xff8800,0.7);
+            const spriteMat = new THREE.SpriteMaterial({map:glowTex,color:0xffffaa,transparent:true,blending:THREE.AdditiveBlending,opacity:0.8});
+            sunGlow = new THREE.Sprite(spriteMat); sunGlow.scale.set(100,100,1); sunM.add(sunGlow);
+            return sunM;
+        }
+
+        function createPlanetsAndMoons() {
+            PLANET_DATA.forEach(data => {
+                // For Sun, skip texture argument as it's handled by its special material
+                if (data.name === 'Sun') {
+                     // Sun is created by createSun(), so this is redundant here, but good to note
+                } else {
+                    createCelestialBody(data, scene, null);
+                }
+            });
+        }
+
+        function createCelestialBody(data, parentSceneOrMesh, parentPlanetData) {
+            const geometry = new THREE.SphereGeometry(data.size, data.isMoon ? 16 : 32, data.isMoon ? 16 : 32);
+            const material = createTexturedMaterial(data.color, data.texture); // Texture URL comes from PLANET_DATA
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.isFocusable = true; mesh.name = data.name; mesh.info = data.info;
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            const tiltPivot = new THREE.Object3D();
+            tiltPivot.rotation.z = THREE.MathUtils.degToRad(data.axialTilt || 0);
+            tiltPivot.add(mesh);
+            const orbitalPivot = new THREE.Object3D();
+            orbitalPivot.add(tiltPivot);
+            let finalOrbitSpeed = data.orbitSpeed;
+            if (data.isMoon && data.isRetrograde) finalOrbitSpeed *= -1;
+            const effectiveOrbitRadius = data.isMoon ? (data.orbitRadiusFactor * parentPlanetData.size) : data.orbitRadius;
+            const body = { mesh, tiltPivot, orbitalPivot, orbitRadius: effectiveOrbitRadius, orbitSpeed: finalOrbitSpeed, rotationSpeed: data.rotationSpeed, angle: data.initialAngle !== undefined ? data.initialAngle : Math.random()*Math.PI*2, isMoon: !!parentPlanetData, parentMesh: parentPlanetData ? parentPlanetData.mesh : null, data, orbitPlanePivot: null };
+            celestialBodies.push(body);
+            addLabel(mesh, data.name, data.isMoon ? 50 : 150, data.isMoon ? 300 : 900);
+            if (data.isMoon && parentPlanetData) {
+                const orbitPlanePivot = new THREE.Object3D();
+                orbitPlanePivot.rotation.x = THREE.MathUtils.degToRad(data.orbitInclination || 0);
+                orbitPlanePivot.rotation.y = THREE.MathUtils.degToRad(data.orbitLongitudeOfAscendingNode || 0);
+                parentPlanetData.mesh.add(orbitPlanePivot); orbitPlanePivot.add(orbitalPivot); body.orbitPlanePivot = orbitPlanePivot;
+                const points = []; for (let i=0;i<=64;i++){const angle=(i/64)*Math.PI*2;points.push(new THREE.Vector3(Math.cos(angle)*effectiveOrbitRadius,0,Math.sin(angle)*effectiveOrbitRadius));}
+                const orbitGeom = new THREE.BufferGeometry().setFromPoints(points);
+                const orbitMat = new THREE.LineBasicMaterial({color:0x666666,transparent:true,opacity:0.5});
+                const orbitLine = new THREE.LineLoop(orbitGeom,orbitMat);
+                orbitPlanePivot.add(orbitLine); orbitLines.push(orbitLine);
+            } else if (!data.isMoon) {
+                parentSceneOrMesh.add(orbitalPivot);
+                const points=[];for(let i=0;i<=64;i++){const angle=(i/64)*Math.PI*2;points.push(new THREE.Vector3(Math.cos(angle)*data.orbitRadius,0,Math.sin(angle)*data.orbitRadius));}
+                const orbitGeom = new THREE.BufferGeometry().setFromPoints(points);
+                const orbitMat = new THREE.LineBasicMaterial({color:0x444444,transparent:true,opacity:0.7});
+                const orbitLine = new THREE.LineLoop(orbitGeom,orbitMat);
+                parentSceneOrMesh.add(orbitLine); orbitLines.push(orbitLine);
+            }
+            if(data.name==='Earth'&&data.hasAtmosphere)mesh.add(createAtmosphere(data.size,0x87ceeb,0.3));
+            if(data.name==='Saturn'&&data.hasRings)tiltPivot.add(createSaturnRings(data.size));
+            if(data.moons){ data.moons.forEach(moonDataFull => { createCelestialBody( {...moonDataFull,isMoon:true,info:moonDataFull.info||{type:'Moon',size:`${((moonDataFull.sizeFactor*data.size)*2*1000).toFixed(0)} km`}},mesh,{mesh:mesh,size:data.size,axialTilt:data.axialTilt}); }); }
+        }
+
+        function createSaturnRings(planetSize) {
+            const innerRadius = planetSize * 1.2, outerRadius = planetSize * 2.2;
+            const ringGeo = new THREE.RingGeometry(innerRadius, outerRadius, 64);
+            const ringTextureUrl = `https://placehold.co/512x64/${getHexColor(0xbaa681)}/${getHexColor(0xbaa681)}`;
+            const ringTex = textureLoader.load(ringTextureUrl,
+                (texture) => { texture.colorSpace = THREE.SRGBColorSpace; texture.wrapS = THREE.RepeatWrapping; texture.repeat.x = 4; },
+                undefined, (err) => { console.error('Failed to load Saturn ring placeholder texture:', err); }
+            );
+            const ringMat = new THREE.MeshPhongMaterial({ map: ringTex, side: THREE.DoubleSide, transparent: true, opacity: 0.7, shininess: 30, specular: 0x222222 });
+            const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+            ringMesh.rotation.x = Math.PI / 2; ringMesh.receiveShadow = true; ringMesh.castShadow = true;
+            ringMesh.name = "Saturn Rings"; ringMesh.isFocusable = false;
+            return ringMesh;
+        }
+
+        function createConstellationVisuals() {
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0x5577cc, transparent: true, opacity: 0.7 });
+            const skySphereRadius = 8000;
+            const constellationGroup = new THREE.Group();
+            for (const name in CONSTELLATION_DATA) {
+                const data = CONSTELLATION_DATA[name];
+                data.lines.forEach(linePair => {
+                    const p1Data = data.stars[linePair[0]]; const p2Data = data.stars[linePair[1]];
+                    if (p1Data && p2Data) {
+                        const p1 = new THREE.Vector3(p1Data.x, p1Data.y, p1Data.z).normalize().multiplyScalar(skySphereRadius);
+                        const p2 = new THREE.Vector3(p2Data.x, p2Data.y, p2Data.z).normalize().multiplyScalar(skySphereRadius);
+                        const points = [p1, p2];
+                        const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                        const line = new THREE.Line(geometry, lineMaterial);
+                        constellationGroup.add(line); constellationObjects.lines.push(line);
+                    } else {
+                        console.warn(`Star data missing for line in ${name}: ${linePair[0]} or ${linePair[1]}`);
+                    }
+                });
+                const labelDiv = document.createElement('div'); labelDiv.className = 'constellation-label'; labelDiv.textContent = name;
+                document.body.appendChild(labelDiv); constellationObjects.labels.push({ div: labelDiv, data: data, name: name });
+            }
+            constellationGroup.visible = false; scene.add(constellationGroup); constellationObjects.group = constellationGroup;
+        }
+
+        function toggleConstellations() {
+            constellationsVisible = !constellationsVisible;
+            if (constellationObjects.group) constellationObjects.group.visible = constellationsVisible;
+            document.getElementById('toggle-constellations-button').textContent = constellationsVisible ? 'Constellations On' : 'Constellations Off';
+            document.getElementById('toggle-constellations-button').classList.toggle('active', constellationsVisible);
+            if(constellationsVisible && targetCameraRadius < 3000) targetCameraRadius = 5000;
+        }
+
+        function updateConstellationLabels() {
+            if (!constellationsVisible || !constellationObjects.group || !constellationObjects.group.visible) {
+                constellationObjects.labels.forEach(l => l.div.style.opacity = 0); return;
+            }
+            const camDir = new THREE.Vector3(); camera.getWorldDirection(camDir);
+            constellationObjects.labels.forEach(labelItem => {
+                const labelPos = new THREE.Vector3(labelItem.data.labelPos.x,labelItem.data.labelPos.y,labelItem.data.labelPos.z).normalize().multiplyScalar(8000);
+                const screenPos = labelPos.clone().project(camera);
+                const toLabel = labelPos.clone().sub(camera.position).normalize();
+                const angle = camDir.angleTo(toLabel);
+                if (screenPos.z < 1 && angle < Math.PI / 1.5 && cameraRadius > 2000) {
+                    const x = (screenPos.x*0.5+0.5)*renderer.domElement.clientWidth; const y = (-screenPos.y*0.5+0.5)*renderer.domElement.clientHeight;
+                    labelItem.div.style.left = `${x}px`; labelItem.div.style.top = `${y}px`; labelItem.div.style.opacity = 1;
+                } else { labelItem.div.style.opacity = 0; }
+            });
+        }
+        
+        function createTexturedMaterial(defaultColor, textureUrl, emissiveColor = null, emissiveIntensity = 0) {
+            const material = new THREE.MeshPhongMaterial({ color: defaultColor, shininess: textureUrl ? 15 : 5, specular: textureUrl ? 0x111111 : 0x050505 });
+            if (emissiveColor) { material.emissive = new THREE.Color(emissiveColor); material.emissiveIntensity = emissiveIntensity; }
+            if (textureUrl) {
+                if (textureCache[textureUrl]) { material.map = textureCache[textureUrl]; material.needsUpdate = true; }
+                else {
+                    textureLoader.load(textureUrl, (tex) => {
+                        tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = renderer.capabilities.getMaxAnisotropy() / 2;
+                        textureCache[textureUrl] = tex; material.map = tex; material.needsUpdate = true;
+                    }, undefined, (err) => { console.error(`Failed to load texture: ${textureUrl}`, err); material.color.setHex(new THREE.Color(defaultColor).getHex() * 0.8); });
+                }
+            } return material;
+        }
+        function createAtmosphere(planetSize, color, opacity) {
+            const atmGeo = new THREE.SphereGeometry(planetSize*1.05,32,32);
+            const atmMat = new THREE.ShaderMaterial({ uniforms:{glowColor:{value:new THREE.Color(color)},opacity:{value:opacity},viewVector:{value:new THREE.Vector3()}}, vertexShader:`uniform vec3 viewVector;varying float intensity;void main(){vec3 actual_normal=normalize(normalMatrix*normal);intensity=pow(0.7-dot(normalize(viewVector),actual_normal),2.0);gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`, fragmentShader:`uniform vec3 glowColor;uniform float opacity;varying float intensity;void main(){gl_FragColor=vec4(glowColor,intensity*opacity);}`, side:THREE.BackSide,blending:THREE.AdditiveBlending,transparent:true,depthWrite:false });
+            return new THREE.Mesh(atmGeo,atmMat);
+        }
+        function createBelt(count,minOrbit,maxOrbit,bandHeight,sizeRange,color,collection,minSpeed,maxSpeed) {
+            const mat=new THREE.MeshPhongMaterial({color:color,shininess:2});
+            for(let i=0;i<count;i++){
+                const size=THREE.MathUtils.randFloat(sizeRange.min,sizeRange.max); const geo=new THREE.IcosahedronGeometry(size,0); const mesh=new THREE.Mesh(geo,mat);
+                const angle=Math.random()*Math.PI*2; const radius=THREE.MathUtils.randFloat(minOrbit,maxOrbit); const incl=(Math.random()-0.5)*(bandHeight/radius); const y=Math.sin(incl)*radius*THREE.MathUtils.randFloat(0.5,1.5);
+                mesh.position.set(Math.cos(angle)*radius,y,Math.sin(angle)*radius); mesh.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI);
+                mesh.castShadow=true;mesh.receiveShadow=true; scene.add(mesh);
+                collection.push({mesh:mesh,orbitRadius:radius,orbitSpeed:THREE.MathUtils.randFloat(minSpeed,maxSpeed)*(minOrbit/radius),rotationSpeed:THREE.MathUtils.randFloat(0.001,0.01),angle:angle,yOffset:y,baseInclination:incl});
+            }
+        }
+        function createStarfield(count,spread) {
+            const sV=[],sC=[],c=new THREE.Color();
+            for(let i=0;i<count;i++){
+                const x=THREE.MathUtils.randFloatSpread(spread*2),y=THREE.MathUtils.randFloatSpread(spread*2),z=THREE.MathUtils.randFloatSpread(spread*2);
+                if(Math.sqrt(x*x+y*y+z*z)<spread/8)continue; sV.push(x,y,z);
+                const r=Math.random(); if(r<0.3)c.setHSL(0.55+Math.random()*0.15,0.8,0.5+Math.random()*0.4); else if(r<0.6)c.setHSL(0.1+Math.random()*0.1,0.8,0.7+Math.random()*0.2); else c.setHSL(0,0,0.7+Math.random()*0.3);
+                sC.push(c.r,c.g,c.b);
+            }
+            const sG=new THREE.BufferGeometry(); sG.setAttribute('position',new THREE.Float32BufferAttribute(sV,3)); sG.setAttribute('color',new THREE.Float32BufferAttribute(sC,3));
+            const sM=new THREE.PointsMaterial({size: (Math.random()*1.5+0.5) * (15000 / spread) * 2, vertexColors:true,sizeAttenuation:true,transparent:true,opacity:0.5+Math.random()*0.4,blending:THREE.AdditiveBlending,depthWrite:false});
+            scene.add(new THREE.Points(sG,sM));
+        }
+        function createRadialGradientTexture(size,c1H,c2H,op) {
+            const canv=document.createElement('canvas');canv.width=size;canv.height=size; const ctx=canv.getContext('2d');
+            const grad=ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2); const c1=new THREE.Color(c1H),c2=new THREE.Color(c2H);
+            grad.addColorStop(0,`rgba(${Math.round(c1.r*255)},${Math.round(c1.g*255)},${Math.round(c1.b*255)},${op})`); grad.addColorStop(1,`rgba(${Math.round(c2.r*255)},${Math.round(c2.g*255)},${Math.round(c2.b*255)},0)`);
+            ctx.fillStyle=grad;ctx.fillRect(0,0,size,size); const tex=new THREE.CanvasTexture(canv); tex.colorSpace=THREE.SRGBColorSpace; return tex;
+        }
+
+        // --- Event Handling & UI ---
+        function setupEventListeners() {
+            document.addEventListener('mousedown',onDocumentMouseDown); document.addEventListener('mouseup',onDocumentMouseUp);
+            document.addEventListener('mousemove',onDocumentMouseMove); document.addEventListener('wheel',onDocumentMouseWheel,{passive:false});
+            renderer.domElement.addEventListener('touchstart',onDocumentTouchStart,{passive:false});
+            renderer.domElement.addEventListener('touchmove',onDocumentTouchMove,{passive:false});
+            renderer.domElement.addEventListener('touchend',onDocumentTouchEnd);
+            window.addEventListener('resize',onWindowResize); renderer.domElement.addEventListener('click',onCanvasClick);
+            document.getElementById('play-pause-button').addEventListener('click',togglePlayPause);
+            ['1x','2x','5x','10x'].forEach(s => document.getElementById(`speed-${s}-button`).addEventListener('click',()=>setSimulationSpeed(parseInt(s))));
+            document.getElementById('reset-view-button').addEventListener('click',()=>showConfirmationModal("Reset camera view to default?",resetView));
+            document.getElementById('music-toggle-button').addEventListener('click',toggleMusic);
+            document.getElementById('toggle-orbits-button').addEventListener('click',toggleOrbitLines);
+            document.getElementById('toggle-labels-button').addEventListener('click',togglePlanetLabels);
+            document.getElementById('toggle-constellations-button').addEventListener('click', toggleConstellations);
+            // Event listener for camera lock button removed
+            document.getElementById('confirm-action-button').addEventListener('click',()=>{if(currentConfirmAction)currentConfirmAction();hideConfirmationModal();});
+            document.getElementById('cancel-action-button').addEventListener('click',hideConfirmationModal);
+            document.getElementById('close-welcome-button').addEventListener('click',()=>document.getElementById('welcome-modal-overlay').style.display='none');
+            setupLoadingManager();
+        }
+        function setupLoadingManager() {
+            loadingManager.onStart=(url,itemsLoaded,itemsTotal)=>{ document.getElementById('loading-overlay').style.display='flex'; document.getElementById('loading-progress').textContent='0%'; };
+            loadingManager.onLoad=()=>{
+                document.getElementById('loading-overlay').style.display='none';
+                try{ if(!localStorage.getItem('solarSystemWelcomeShown_v5.2')){ document.getElementById('welcome-modal-overlay').style.display='flex'; localStorage.setItem('solarSystemWelcomeShown_v5.2','true'); } 
+                }catch(e){ console.warn("LocalStorage access failed.",e); document.getElementById('welcome-modal-overlay').style.display='flex'; }
+                animate();
+            };
+            loadingManager.onProgress=(url,itemsLoaded,itemsTotal)=>{ const progress=Math.round((itemsLoaded/itemsTotal)*100); document.getElementById('loading-progress').textContent=`${progress}%`; };
+            loadingManager.onError=(url)=>{ console.error('Error loading: '+url); document.getElementById('loading-progress').textContent='Error!'; };
+        }
+        let currentConfirmAction=null; function showConfirmationModal(message, onConfirm){ document.getElementById('confirmation-message').textContent=message; currentConfirmAction=onConfirm; document.getElementById('confirmation-modal-overlay').style.display='flex';}
+        function hideConfirmationModal(){ document.getElementById('confirmation-modal-overlay').style.display='none'; currentConfirmAction=null;}
+        function addLabel(object3D, text, minApparentSizeFactor = 0.03, maxDistance = 800){
+            const labelDiv=document.createElement('div'); labelDiv.className='planet-label'; labelDiv.textContent=text; document.body.appendChild(labelDiv);
+            object3D.userData.label=labelDiv; object3D.userData.labelMinApparentSizeFactor=minApparentSizeFactor;
+            object3D.userData.labelMaxDistance=maxDistance; object3D.userData.isMoonLabel=celestialBodies.find(cb=>cb.mesh===object3D&&cb.isMoon); return labelDiv;
+        }
+        
+        // toggleCameraLock function removed
+
+        function updateLabels() {
+            if(!labelsVisible){document.querySelectorAll('.planet-label').forEach(l=>l.style.opacity=0);return;}
+            const tempVector=new THREE.Vector3(); const allLabelObjects=[sun,...celestialBodies.map(cb=>cb.mesh)];
+            allLabelObjects.forEach(obj=>{
+                if(!obj?.userData?.label)return; const label=obj.userData.label;
+                obj.getWorldPosition(tempVector); const distance=camera.position.distanceTo(tempVector);
+                tempVector.project(camera);
+                const x=(tempVector.x*0.5+0.5)*renderer.domElement.clientWidth; const y=(-tempVector.y*0.5+0.5)*renderer.domElement.clientHeight;
+                label.style.left=`${x}px`; label.style.top=`${y}px`;
+                const objectRadius=obj.geometry?.parameters?.radius||0.1; const apparentSize=(objectRadius/distance)*camera.fov;
+                const minSizeFactor = obj.userData.isMoonLabel ? 0.008 : (obj.name === 'Sun' ? 0.015 : 0.025);
+                const maxDist = obj.userData.isMoonLabel ? (obj.userData.labelMaxDistance / 1.5) : obj.userData.labelMaxDistance;
+                if(apparentSize<minSizeFactor||distance>maxDist||tempVector.z>1){ label.style.opacity=0; label.style.pointerEvents='none'; }
+                else{ const opacity=Math.min(1,Math.max(0,(apparentSize-minSizeFactor)/(minSizeFactor*2))); label.style.opacity=opacity; label.style.pointerEvents=opacity>0.5?'auto':'none';}
+            });
+        }
+        
+        function updateCameraPosition(){
+            cameraRadius = THREE.MathUtils.lerp(cameraRadius, targetCameraRadius, CAMERA_LERP_FACTOR);
+            cameraPolarAngle = THREE.MathUtils.lerp(cameraPolarAngle, targetCameraPolarAngle, CAMERA_LERP_FACTOR);
+            cameraAzimuthalAngle = THREE.MathUtils.lerp(cameraAzimuthalAngle, targetCameraAzimuthalAngle, CAMERA_LERP_FACTOR);
+            
+            let lookAtTargetPosition = new THREE.Vector3(0,0,0); 
+            if (focusedObject) { 
+                focusedObject.getWorldPosition(lookAtTargetPosition); 
+            }
+            targetLookAt.lerp(lookAtTargetPosition, CAMERA_LERP_FACTOR * (focusedObject ? 2 : 1)); 
+            const finalOffset = new THREE.Vector3().setFromSphericalCoords(cameraRadius, cameraPolarAngle, cameraAzimuthalAngle);
+            camera.position.copy(targetLookAt).add(finalOffset);
+            camera.lookAt(targetLookAt);
+            
+            const earth = celestialBodies.find(cb => cb.data.name === 'Earth');
+            if (earth?.mesh.children.find(ch => ch.material?.type === 'ShaderMaterial')) {
+                const atmosphereMesh = earth.mesh.children.find(ch => ch.material.type === 'ShaderMaterial');
+                if (atmosphereMesh) {
+                    const viewVec = new THREE.Vector3().subVectors(camera.position, earth.mesh.getWorldPosition(new THREE.Vector3()));
+                    atmosphereMesh.material.uniforms.viewVector.value = viewVec;
+                }
+            }
+        }
+
+        function resetView(){
+            focusedObject=null; 
+            targetCameraRadius=500; targetCameraPolarAngle=Math.PI/2.8; targetCameraAzimuthalAngle=0.15; // Keep slight offset
+            targetLookAt.set(0,0,0); hidePlanetInfo();
+        }
+
+        function togglePlayPause(){isPaused=!isPaused;document.getElementById('play-pause-button').textContent=isPaused?'Play':'Pause';document.getElementById('play-pause-button').classList.toggle('active',!isPaused);}
+        function setSimulationSpeed(s){simulationSpeed=s;updateSpeedButtonStates();}
+        function updateSpeedButtonStates(){['1x','2x','5x','10x'].forEach(s=>{const b=document.getElementById(`speed-${s}-button`);if(b)b.classList.toggle('active',parseInt(s)===simulationSpeed);});}
+        function toggleOrbitLines(){orbitsVisible=!orbitsVisible;orbitLines.forEach(l=>l.visible=orbitsVisible);const b=document.getElementById('toggle-orbits-button');b.textContent=orbitsVisible?'Orbits On':'Orbits Off';b.classList.toggle('active',orbitsVisible);}
+        function togglePlanetLabels(){labelsVisible=!labelsVisible;const b=document.getElementById('toggle-labels-button');b.textContent=labelsVisible?'Body Labels On':'Body Labels Off';b.classList.toggle('active',labelsVisible);}
+        
+        function showPlanetInfo(body){
+            const info = body.info || body.data?.info; if(!info){hidePlanetInfo();return;}
+            const disp=document.getElementById('planet-info-display');
+            disp.querySelector('#planet-info-name').textContent=body.name||body.data?.name;
+            disp.querySelector('#planet-info-type').textContent=info.type||'N/A';
+            disp.querySelector('#planet-info-size').textContent=info.size||'N/A';
+            disp.querySelector('#planet-info-moons').textContent=info.knownMoonsCount !== undefined ? info.knownMoonsCount : (body.isMoon || (celestialBodies.find(cb => cb.mesh === body && cb.isMoon)) ? 'N/A (Moon)' : '0');
+            disp.querySelector('#planet-info-feature').textContent=info.notableFeature||'N/A';
+            disp.querySelector('#planet-info-orbit-period').textContent=info.orbitPeriod||'N/A';
+            disp.querySelector('#planet-info-rotation-period').textContent=info.rotationPeriod||'N/A';
+            disp.style.display='block';
+        }
+        function hidePlanetInfo(){document.getElementById('planet-info-display').style.display='none';}
+        function onWindowResize(){camera.aspect=window.innerWidth/(window.innerHeight-80);camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight-80);}
+
+        // --- Pointer (Mouse/Touch) Interaction Handlers ---
+        function onDocumentMouseDown(e){
+            if(e.target!==renderer.domElement)return;
+            e.preventDefault();
+            pointerDown = true;
+            previousMouseX = e.clientX;
+            previousMouseY = e.clientY;
+        }
+        function onDocumentMouseUp(e){
+            pointerDown = false;
+            if (isDragging) {
+                isDragging = false; 
+            }
+            document.body.style.cursor='grab';
+        }
+        function onDocumentMouseMove(e){
+            if (!pointerDown) return; 
+
+            if (!isDragging) { 
+                isDragging = true;
+                document.body.style.cursor='grabbing';
+            }
+            const dX=e.clientX-previousMouseX;
+            const dY=e.clientY-previousMouseY;
+            targetCameraAzimuthalAngle+=dX*CAMERA_ROTATION_SPEED;
+            targetCameraPolarAngle-=dY*CAMERA_ROTATION_SPEED;
+            targetCameraPolarAngle=Math.max(MIN_POLAR_ANGLE,Math.min(MAX_POLAR_ANGLE,targetCameraPolarAngle));
+            previousMouseX=e.clientX;
+            previousMouseY=e.clientY;
+        }
+       
+        function onDocumentMouseWheel(e){
+            e.preventDefault();
+            targetCameraRadius-=e.deltaY*(constellationsVisible?2:0.3); 
+            targetCameraRadius=Math.max(MIN_CAMERA_RADIUS,Math.min(MAX_CAMERA_RADIUS,targetCameraRadius));
+        }
+
+        function onDocumentTouchStart(e){
+            if(e.target !== renderer.domElement) return;
+            pointerDown = true;
+            if(e.touches.length===1){
+                e.preventDefault();
+                touchStartX=e.touches[0].clientX;
+                touchStartY=e.touches[0].clientY;
+            } else if(e.touches.length===2){
+                e.preventDefault();
+                isDragging = false; 
+                const dX=e.touches[0].clientX-e.touches[1].clientX;
+                const dY=e.touches[0].clientY-e.touches[1].clientY;
+                initialPinchDistance=Math.sqrt(dX*dX+dY*dY);
+            }
+        }
+        function onDocumentTouchMove(e){
+            if(!pointerDown || e.target !== renderer.domElement) return;
+
+            if(e.touches.length===1){
+                e.preventDefault();
+                if (!isDragging) { 
+                    isDragging = true;
+                }
+                const dX=e.touches[0].clientX-touchStartX;
+                const dY=e.touches[0].clientY-touchStartY;
+                targetCameraAzimuthalAngle+=dX*CAMERA_ROTATION_SPEED*1.5; 
+                targetCameraPolarAngle-=dY*CAMERA_ROTATION_SPEED*1.5;
+                targetCameraPolarAngle=Math.max(MIN_POLAR_ANGLE,Math.min(MAX_POLAR_ANGLE,targetCameraPolarAngle));
+                touchStartX=e.touches[0].clientX;
+                touchStartY=e.touches[0].clientY;
+            } else if(e.touches.length===2){
+                e.preventDefault();
+                isDragging = false; 
+                const dX=e.touches[0].clientX-e.touches[1].clientX;
+                const dY=e.touches[0].clientY-e.touches[1].clientY;
+                const pD=Math.sqrt(dX*dX+dY*dY);
+                targetCameraRadius-=(pD-initialPinchDistance)*(constellationsVisible?1.2:0.8);
+                targetCameraRadius=Math.max(MIN_CAMERA_RADIUS,Math.min(MAX_CAMERA_RADIUS,targetCameraRadius));
+                initialPinchDistance=pD;
+            }
+        }
+        function onDocumentTouchEnd(e){
+            pointerDown = false;
+            if (isDragging) {
+                isDragging = false;
+            }
+            initialPinchDistance=0;
+        }
+
+        function onCanvasClick(e){
+            if (isDragging) { 
+                return;
+            }
+            mouse.x=(e.clientX/renderer.domElement.clientWidth)*2-1;
+            mouse.y=-(e.clientY/renderer.domElement.clientHeight)*2+1;
+            raycaster.setFromCamera(mouse,camera);
+
+            const focusableMeshes = [sun, ...celestialBodies.map(cb => cb.mesh)].filter(m => m && m.isFocusable === true);
+            const intersects=raycaster.intersectObjects(focusableMeshes,true);
+
+            if(intersects.length > 0){
+                let rawClickedIntersect = intersects[0].object;
+                let workingClickedObject = rawClickedIntersect; 
+
+                while (workingClickedObject.parent && !(workingClickedObject.isFocusable === true)) {
+                    workingClickedObject = workingClickedObject.parent;
+                }
+
+                if (workingClickedObject && workingClickedObject.isFocusable === true) {
+                    focusedObject = workingClickedObject;
+
+                    let isMoon = false;
+                    const bodyDetails = celestialBodies.find(cb => cb.mesh === focusedObject);
+                    if (bodyDetails) { isMoon = bodyDetails.isMoon; }
+
+                    let baseRadius = focusedObject.geometry?.parameters?.radius;
+                    if (typeof baseRadius !== 'number' || baseRadius <= 0) {
+                        if (focusedObject === sun) baseRadius = 30;
+                        else baseRadius = (bodyDetails && bodyDetails.data && typeof bodyDetails.data.size === 'number') ? bodyDetails.data.size : 5; 
+                    }
+
+                    let zoomFactor = 8;
+                    if (isMoon) { zoomFactor = 15; }
+                    else if (focusedObject.name === 'Sun') { zoomFactor = 4; }
+                    else if (focusedObject.name === 'Saturn') { zoomFactor = 10; }
+
+                    targetCameraRadius = baseRadius * zoomFactor;
+                    targetCameraRadius = Math.max(MIN_CAMERA_RADIUS, Math.min(MAX_CAMERA_RADIUS / 2, targetCameraRadius));
+                    showPlanetInfo(focusedObject);
+                } else {
+                    resetView();
+                }
+            } else {
+                resetView();
+            }
+        }
+
+        function setupMusic(){if(synth)return;synth=new Tone.FMSynth({harmonicity:1.2,modulationIndex:8,envelope:{attack:0.8,decay:1.5,sustain:0.4,release:3},modulation:{type:"sine"},modulationEnvelope:{attack:0.3,decay:0.8,sustain:0.2,release:1.5}}).toDestination();reverb=new Tone.Reverb({decay:10,wet:0.5}).toDestination();delay=new Tone.FeedbackDelay("2n",0.45).toDestination();synth.chain(delay,reverb);musicLoop=new Tone.Loop(t=>{const n=MUSIC_SCALE[Math.floor(Math.random()*MUSIC_SCALE.length)];const v=Math.random()*0.3+0.2;synth.triggerAttackRelease(n,"1m",t,v);},"0.75m");Tone.Transport.bpm.value=50;Tone.Transport.swing=0.1;}
+        function toggleMusic(){
+            if(Tone.context.state!=='running'){
+                Tone.start().then(()=>{
+                    if(!musicPlaying){if(!synth)setupMusic();Tone.Transport.start("+0.1");musicLoop.start(0);musicPlaying=true;}
+                    else{Tone.Transport.stop();musicLoop.stop();musicPlaying=false;}
+                    updateMusicButton();
+                }).catch(e=>console.error("AudioContext start error:",e));return;
+            }
+            if(musicPlaying){Tone.Transport.stop();musicLoop.stop();musicPlaying=false;}
+            else{if(!synth)setupMusic();Tone.Transport.start("+0.1");musicLoop.start(0);musicPlaying=true;}
+            updateMusicButton();
+        }
+        function updateMusicButton(){const b=document.getElementById('music-toggle-button');b.textContent=musicPlaying?'Music On':'Music Off';b.classList.toggle('active',musicPlaying);}
+
+        function animate(){
+            requestAnimationFrame(animate); const delta=simulationSpeed*0.016;
+            if(!isPaused){
+                celestialBodies.forEach(body=>{ body.angle+=body.orbitSpeed*delta; body.orbitalPivot.position.x=Math.cos(body.angle)*body.orbitRadius; body.orbitalPivot.position.z=Math.sin(body.angle)*body.orbitRadius; body.mesh.rotation.y+=body.rotationSpeed*delta*5; });
+                asteroids.forEach(a=>{a.angle+=a.orbitSpeed*delta;a.mesh.position.x=Math.cos(a.angle)*a.orbitRadius;a.mesh.position.z=Math.sin(a.angle)*a.orbitRadius;a.mesh.rotation.x+=a.rotationSpeed*delta*2;a.mesh.rotation.y+=a.rotationSpeed*delta*1;});
+                kuiperBeltObjects.forEach(k=>{k.angle+=k.orbitSpeed*delta;k.mesh.position.x=Math.cos(k.angle)*k.orbitRadius;k.mesh.position.z=Math.sin(k.angle)*k.orbitRadius;k.mesh.rotation.x+=k.rotationSpeed*delta*1.5;k.mesh.rotation.y+=k.rotationSpeed*delta*0.7;});
+                glowScaleFactor+=glowDirection*0.008*delta*60; if(glowScaleFactor>1.15||glowScaleFactor<0.85)glowDirection*=-1;
+                sunGlow.scale.set(100*glowScaleFactor,100*glowScaleFactor,1);
+            }
+            updateCameraPosition(); updateLabels(); updateConstellationLabels(); renderer.render(scene,camera);
+        }
+        init();
+    </script>
+</body>
+</html>
